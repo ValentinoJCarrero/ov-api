@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ovapy — Mis conversaciones</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
+    header { background: #1a1a2e; color: #fff; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    header .owner-name { font-size: 0.85rem; opacity: 0.75; }
+    header button { background: transparent; border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+
+    /* Login */
+    .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .login-card { background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); padding: 40px 36px; width: 100%; max-width: 380px; }
+    .login-card h2 { font-size: 1.4rem; margin-bottom: 8px; color: #1a1a2e; }
+    .login-card p { font-size: 0.88rem; color: #777; margin-bottom: 28px; }
+    label { display: block; font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 5px; }
+    input[type=text], input[type=password] { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; margin-bottom: 16px; }
+    input:focus { outline: none; border-color: #1a1a2e; }
+    .btn-primary { width: 100%; background: #1a1a2e; color: #fff; border: none; padding: 11px; border-radius: 8px; font-size: 0.95rem; cursor: pointer; font-weight: 600; }
+    .btn-primary:hover { background: #2d2d5e; }
+    .error-msg { color: #c0392b; font-size: 0.82rem; margin-top: -8px; margin-bottom: 12px; display: none; }
+
+    /* Dashboard */
+    #dashboard { display: none; }
+    .inbox { display: grid; grid-template-columns: 300px 1fr; height: calc(100vh - 56px); }
+    .conv-list { border-right: 1px solid #ddd; overflow-y: auto; background: #fff; }
+    .conv-item { padding: 13px 16px; cursor: pointer; border-bottom: 1px solid #eee; }
+    .conv-item:hover { background: #f5f5f5; }
+    .conv-item.active { background: #e8eaf6; }
+    .conv-name { font-weight: 600; font-size: 0.9rem; }
+    .conv-preview { font-size: 0.8rem; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+    .conv-meta { display: flex; justify-content: space-between; align-items: center; }
+    .conv-time { font-size: 0.72rem; color: #aaa; }
+    .tag { padding: 2px 7px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; }
+    .tag.human { background: #fce4ec; color: #880e4f; }
+    .tag.ai { background: #d1fae5; color: #065f46; }
+    .chat-pane { display: flex; flex-direction: column; background: #fafafa; }
+    .chat-header { padding: 12px 18px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+    .chat-header .chat-title { font-weight: 600; font-size: 0.95rem; }
+    .chat-header-actions { display: flex; gap: 8px; align-items: center; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 8px; }
+    .bubble { max-width: 70%; padding: 9px 13px; border-radius: 14px; font-size: 0.875rem; line-height: 1.45; }
+    .bubble.inbound { background: #f0f0f0; align-self: flex-start; border-bottom-left-radius: 3px; }
+    .bubble.outbound { background: #1a1a2e; color: #fff; align-self: flex-end; border-bottom-right-radius: 3px; }
+    .bubble-time { font-size: 0.68rem; opacity: 0.55; margin-top: 4px; text-align: right; }
+    .chat-input-bar { padding: 12px 16px; border-top: 1px solid #eee; display: flex; gap: 8px; background: #fff; }
+    .chat-input-bar input { flex: 1; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.9rem; }
+    .chat-input-bar input:focus { outline: none; border-color: #1a1a2e; }
+    .chat-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: #bbb; font-size: 0.95rem; }
+    .btn-sm { padding: 5px 11px; font-size: 0.78rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .btn-dark { background: #1a1a2e; color: #fff; }
+    .btn-dark:hover { background: #2d2d5e; }
+    .btn-green { background: #065f46; color: #fff; }
+    .btn-green:hover { background: #047857; }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: #fff; padding: 11px 18px; border-radius: 8px; font-size: 0.88rem; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; }
+    .toast.show { opacity: 1; }
+
+    @media (max-width: 640px) {
+      .inbox { grid-template-columns: 1fr; }
+      .conv-list { display: none; }
+      .conv-list.mobile-show { display: block; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-card">
+    <h2>Bienvenido</h2>
+    <p>Ingresá con tus credenciales para ver tus conversaciones.</p>
+    <label>Usuario</label>
+    <input type="text" id="loginIdentity" placeholder="usuario" />
+    <label>Contraseña</label>
+    <input type="password" id="loginPassword" placeholder="••••" onkeydown="if(event.key==='Enter') doLogin()" />
+    <div class="error-msg" id="loginError">Credenciales incorrectas.</div>
+    <button class="btn-primary" onclick="doLogin()">Ingresar</button>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard">
+  <header>
+    <h1>Ovapy</h1>
+    <div style="display:flex;align-items:center;gap:16px">
+      <span class="owner-name" id="ownerNameHeader"></span>
+      <button onclick="doLogout()">Salir</button>
+    </div>
+  </header>
+  <div class="inbox">
+    <div class="conv-list" id="convList">
+      <div style="padding:16px;color:#aaa;font-size:0.85rem">Cargando...</div>
+    </div>
+    <div class="chat-pane" id="chatPane">
+      <div class="chat-placeholder">Seleccioná una conversación</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // Si este archivo se sirve desde ovapy.com, apuntar al backend explícitamente.
+  // Si se sirve desde back.ovapy.com/dashboard, dejar vacío.
+  const API = window.location.hostname === 'ovapy.com' ? 'https://back.ovapy.com' : '';
+  let token = null;
+  let activeConvId = null;
+  let activeHumanMode = false;
+  let pollInterval = null;
+
+  // ── Auth ──────────────────────────────────────────────────────
+
+  function getToken() {
+    return token || localStorage.getItem('owner_token');
+  }
+
+  function authHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getToken()}`,
+    };
+  }
+
+  async function apiFetch(path, opts = {}) {
+    const res = await fetch(API + path, { ...opts, headers: authHeaders() });
+    if (!res.ok) {
+      const err = await res.text().catch(() => res.statusText);
+      throw new Error(`${res.status}: ${err}`);
+    }
+    return res.json();
+  }
+
+  async function doLogin() {
+    const identity = document.getElementById('loginIdentity').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+    const errEl = document.getElementById('loginError');
+    errEl.style.display = 'none';
+
+    if (!identity || !password) { errEl.textContent = 'Completá todos los campos.'; errEl.style.display = 'block'; return; }
+
+    try {
+      const res = await fetch(API + '/owner/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identity, password }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      token = data.token;
+      localStorage.setItem('owner_token', token);
+      document.getElementById('ownerNameHeader').textContent = data.name;
+      showDashboard();
+    } catch {
+      errEl.style.display = 'block';
+    }
+  }
+
+  function doLogout() {
+    localStorage.removeItem('owner_token');
+    token = null;
+    clearInterval(pollInterval);
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('loginWrap').style.display = 'flex';
+  }
+
+  // ── Init ──────────────────────────────────────────────────────
+
+  async function init() {
+    const saved = localStorage.getItem('owner_token');
+    if (!saved) return;
+    try {
+      const me = await fetch('/owner/me', { headers: { Authorization: `Bearer ${saved}` } });
+      if (!me.ok) { localStorage.removeItem('owner_token'); return; }
+      const data = await me.json();
+      token = saved;
+      document.getElementById('ownerNameHeader').textContent = data.staff.name;
+      showDashboard();
+    } catch {
+      localStorage.removeItem('owner_token');
+    }
+  }
+
+  function showDashboard() {
+    document.getElementById('loginWrap').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    loadConversations();
+    clearInterval(pollInterval);
+    pollInterval = setInterval(loadConversations, 10000);
+  }
+
+  // ── Conversations ─────────────────────────────────────────────
+
+  async function loadConversations() {
+    try {
+      const data = await apiFetch('/owner/conversations');
+      const list = document.getElementById('convList');
+      if (!data.length) {
+        list.innerHTML = '<div style="padding:16px;color:#aaa;font-size:0.85rem">Sin conversaciones</div>';
+        return;
+      }
+      list.innerHTML = data.map(c => {
+        const name = escHtml(c.contact.name || c.contact.phone);
+        const preview = escHtml((c.lastMessagePreview || '—').substring(0, 42));
+        const time = new Date(c.lastMessageAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const badge = c.humanMode
+          ? '<span class="tag human">Manual</span>'
+          : '<span class="tag ai">IA</span>';
+        return `<div class="conv-item ${c.id === activeConvId ? 'active' : ''}" onclick="openConversation('${c.id}', ${c.humanMode})">
+          <div class="conv-meta"><span class="conv-name">${name}</span>${badge}</div>
+          <div class="conv-meta"><span class="conv-preview">${preview}</span><span class="conv-time">${time}</span></div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      if (e.message.startsWith('401')) doLogout();
+    }
+  }
+
+  async function openConversation(id, humanMode) {
+    activeConvId = id;
+    activeHumanMode = humanMode;
+    document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.conv-item').forEach(el => {
+      if (el.getAttribute('onclick')?.includes(`'${id}'`)) el.classList.add('active');
+    });
+    await renderChat(id, humanMode);
+  }
+
+  async function renderChat(id, humanMode) {
+    try {
+      const msgs = await apiFetch(`/owner/conversations/${id}/messages`);
+      const pane = document.getElementById('chatPane');
+      const modeLabel = humanMode
+        ? '<span class="tag human">Modo Manual</span>'
+        : '<span class="tag ai">IA activa</span>';
+      const toggleLabel = humanMode ? 'Activar IA' : 'Tomar conversación';
+      const toggleClass = humanMode ? 'btn-green' : 'btn-dark';
+
+      pane.innerHTML = `
+        <div class="chat-header">
+          <span class="chat-title">Conversación</span>
+          <div class="chat-header-actions">
+            ${modeLabel}
+            <button class="btn-sm ${toggleClass}" onclick="toggleHuman('${id}', ${humanMode})">${toggleLabel}</button>
+          </div>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          ${msgs.length === 0
+            ? '<div style="color:#bbb;margin:auto;font-size:0.9rem">Sin mensajes</div>'
+            : msgs.map(m => `
+              <div class="bubble ${m.direction === 'INBOUND' ? 'inbound' : 'outbound'}">
+                ${escHtml(m.content)}
+                <div class="bubble-time">${new Date(m.createdAt).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}</div>
+              </div>`).join('')}
+        </div>
+        <div class="chat-input-bar">
+          <input type="text" id="replyInput" placeholder="Escribí tu respuesta..."
+            onkeydown="if(event.key==='Enter') sendReply('${id}')" />
+          <button class="btn-sm btn-dark" onclick="sendReply('${id}')">Enviar</button>
+        </div>`;
+
+      const box = document.getElementById('chatMessages');
+      if (box) box.scrollTop = box.scrollHeight;
+    } catch (e) {
+      toast('❌ Error cargando mensajes');
+    }
+  }
+
+  async function sendReply(id) {
+    const input = document.getElementById('replyInput');
+    const text = input?.value?.trim();
+    if (!text) return;
+    try {
+      await apiFetch(`/owner/conversations/${id}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      });
+      input.value = '';
+      await renderChat(id, activeHumanMode);
+    } catch { toast('❌ Error al enviar'); }
+  }
+
+  async function toggleHuman(id, currentlyHuman) {
+    try {
+      const result = await apiFetch(`/owner/conversations/${id}/human-mode`, {
+        method: 'PATCH',
+        body: JSON.stringify({ humanMode: !currentlyHuman }),
+      });
+      activeHumanMode = result.humanMode;
+      toast(result.humanMode ? 'Modo manual activado' : 'IA reactivada');
+      await loadConversations();
+      await renderChat(id, result.humanMode);
+    } catch { toast('❌ Error'); }
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 3000);
+  }
+
+  init();
+</script>
+
+</body>
+</html>

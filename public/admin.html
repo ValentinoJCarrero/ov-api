@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
+    header { background: #1a1a2e; color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.2rem; font-weight: 600; }
+    .badge { background: #e94560; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
+    main { max-width: 1440px; margin: 32px auto; padding: 0 24px; display: flex; flex-direction: column; gap: 24px; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); overflow: hidden; }
+    .card-header { background: #f0f0f0; padding: 14px 20px; font-weight: 600; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+    .card-body { padding: 20px; }
+    label { display: block; margin-bottom: 4px; font-size: 0.85rem; color: #555; font-weight: 500; }
+    input, select { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; margin-bottom: 14px; }
+    input:focus, select:focus { outline: none; border-color: #1a1a2e; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    button { background: #1a1a2e; color: #fff; border: none; padding: 9px 18px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+    button:hover { background: #2d2d5e; }
+    button.danger { background: #c0392b; }
+    button.danger:hover { background: #a93226; }
+    .btn-sm { padding: 5px 12px; font-size: 0.8rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 10px 12px; background: #f8f8f8; border-bottom: 2px solid #ddd; font-weight: 600; }
+    td { padding: 9px 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+    tr:hover td { background: #fafafa; }
+    .tag { padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    .tag.owner { background: #fef3c7; color: #92400e; }
+    .tag.member { background: #dbeafe; color: #1e40af; }
+    .tag.active { background: #d1fae5; color: #065f46; }
+    .tag.inactive { background: #fee2e2; color: #991b1b; }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 0.9rem; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; }
+    .toast.show { opacity: 1; }
+    .api-key-bar { background: #fffbeb; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; display: flex; gap: 12px; align-items: center; font-size: 0.9rem; }
+    .api-key-bar input { margin: 0; flex: 1; }
+    #addStaffForm { display: none; background: #f9f9f9; border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-top: 16px; }
+    #addStaffForm.open { display: block; }
+
+    /* Hours modal */
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+    .modal-backdrop.open { display: flex; }
+    .modal { background: #fff; border-radius: 10px; padding: 24px; width: 480px; max-width: 95vw; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+    .modal h3 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
+    .hours-row { display: grid; grid-template-columns: 80px 1fr 1fr 32px; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 0.85rem; }
+    .hours-row input[type="time"] { padding: 6px 8px; margin: 0; }
+    .hours-row input[type="checkbox"] { width: 16px; height: 16px; margin: 0; cursor: pointer; }
+
+    /* Inbox */
+    .inbox { display: grid; grid-template-columns: 300px 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; min-height: 480px; background: #fff; }
+    .conv-list { border-right: 1px solid #ddd; overflow-y: auto; max-height: 480px; }
+    .conv-item { padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #eee; }
+    .conv-item:hover { background: #f5f5f5; }
+    .conv-item.active { background: #e8eaf6; }
+    .conv-item .conv-name { font-weight: 600; font-size: 0.9rem; }
+    .conv-item .conv-preview { font-size: 0.8rem; color: #777; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+    .conv-item .conv-meta { display: flex; justify-content: space-between; align-items: center; }
+    .conv-item .conv-time { font-size: 0.75rem; color: #aaa; }
+    .tag.human { background: #fce4ec; color: #880e4f; }
+    .chat-pane { display: flex; flex-direction: column; }
+    .chat-header { padding: 12px 16px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #fafafa; }
+    .chat-header .chat-title { font-weight: 600; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; max-height: 360px; }
+    .bubble { max-width: 72%; padding: 8px 12px; border-radius: 12px; font-size: 0.875rem; line-height: 1.4; }
+    .bubble.inbound { background: #f0f0f0; align-self: flex-start; border-bottom-left-radius: 2px; }
+    .bubble.outbound { background: #1a1a2e; color: #fff; align-self: flex-end; border-bottom-right-radius: 2px; }
+    .bubble .bubble-time { font-size: 0.7rem; opacity: 0.6; margin-top: 4px; text-align: right; }
+    .chat-input-bar { padding: 12px 16px; border-top: 1px solid #eee; display: flex; gap: 8px; }
+    .chat-input-bar input { flex: 1; margin: 0; }
+    .chat-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: #aaa; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Panel Admin</h1>
+  <span class="badge">Ovapy</span>
+</header>
+
+<main>
+
+  <!-- API Key -->
+  <div class="api-key-bar">
+    <span>🔑 API Key:</span>
+    <input type="password" id="apiKey" placeholder="X-Admin-Api-Key" value="" />
+    <button onclick="saveKey()">Guardar</button>
+  </div>
+
+  <!-- Business Selector -->
+  <div class="api-key-bar" style="background:#f0f4ff;border-color:#93c5fd">
+    <span>🏢 Negocio:</span>
+    <select id="businessSelector" onchange="onBusinessChange()" style="margin:0;flex:1">
+      <option value="">Cargando...</option>
+    </select>
+  </div>
+
+  <!-- Negocio -->
+  <div class="card" id="businessCard">
+    <div class="card-header">
+      Negocio
+      <div style="display:flex;gap:8px">
+        <button class="btn-sm" id="toggleEditBusinessBtn" onclick="toggleEditBusinessForm()" style="display:none">Editar</button>
+        <button class="btn-sm" id="toggleBusinessFormBtn" onclick="toggleBusinessForm()">+ Crear negocio</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="businessInfo" style="display:none;margin-bottom:16px;font-size:0.9rem;color:#555"></div>
+      <div id="editBusinessForm" style="display:none;margin-bottom:16px">
+        <div class="row">
+          <div>
+            <label>Nombre del negocio</label>
+            <input type="text" id="editBizName" placeholder="Barbería Don Pedro" />
+          </div>
+          <div>
+            <label>Teléfono de contacto</label>
+            <input type="text" id="editBizPhone" placeholder="5491112345678" />
+          </div>
+        </div>
+        <label>Timezone</label>
+        <input type="text" id="editBizTimezone" placeholder="America/Argentina/Buenos_Aires" />
+        <label>Dirección (mostrada al cliente por WhatsApp)</label>
+        <input type="text" id="editBizAddress" placeholder="Av. Corrientes 1234, CABA" />
+        <label>Info adicional (zona, referencias, horarios especiales…)</label>
+        <textarea id="editBizExtraInfo" rows="2" placeholder="A 2 cuadras del subte B, estación Uruguay. Atendemos con turno previo." style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;resize:vertical"></textarea>
+        <button onclick="updateBusiness()">Guardar cambios</button>
+        <button class="danger btn-sm" style="margin-left:8px" onclick="toggleEditBusinessForm()">Cancelar</button>
+      </div>
+
+      <!-- Business Hours -->
+      <div id="businessHoursSection" style="display:none;margin-top:16px">
+        <hr style="border:none;border-top:1px solid #eee;margin-bottom:16px" />
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-weight:600;font-size:0.9rem">Horarios del negocio <span style="font-weight:400;color:#888;font-size:0.8rem">(default para profesionales sin horario propio)</span></div>
+          <button class="btn-sm" onclick="toggleBizHours()" id="bizHoursToggleBtn">▼ Ver</button>
+        </div>
+        <div id="bizHoursGrid" style="display:none">
+          <div class="hours-row" style="font-weight:600;font-size:0.8rem;color:#555">
+            <span>Día</span><span>Apertura</span><span>Cierre</span><span title="Activo">✓</span>
+          </div>
+          <div id="bizHoursRows"></div>
+          <div style="margin-top:12px">
+            <button onclick="saveBusinessHours()">Guardar horarios</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="createBusinessForm" style="display:none">
+        <div class="row">
+          <div>
+            <label>Nombre del negocio</label>
+            <input type="text" id="bizName" placeholder="Barbería Don Pedro" />
+          </div>
+          <div>
+            <label>Teléfono de contacto</label>
+            <input type="text" id="bizPhone" placeholder="5491112345678" />
+          </div>
+        </div>
+        <label>Timezone</label>
+        <input type="text" id="bizTimezone" placeholder="America/Argentina/Buenos_Aires" value="America/Argentina/Buenos_Aires" />
+        <button onclick="createBusiness()">Crear negocio</button>
+        <button class="danger btn-sm" style="margin-left:8px" onclick="toggleBusinessForm()">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WhatsApp Config -->
+  <div class="card">
+    <div class="card-header">Configuración WhatsApp Business</div>
+    <div class="card-body">
+      <div class="row">
+        <div>
+          <label>WA Token (Bearer)</label>
+          <input type="password" id="waToken" placeholder="EAAxxxxxx..." />
+        </div>
+        <div>
+          <label>Phone Number ID</label>
+          <input type="text" id="waPhoneNumberId" placeholder="1234567890" />
+        </div>
+      </div>
+      <label>Verify Token</label>
+      <input type="text" id="waVerifyToken" placeholder="mi-token-secreto" />
+      <label>Plantilla de recordatorio (nombre aprobado en Meta, ej: <code>recordatorio_turno</code>)</label>
+      <input type="text" id="waReminderTemplate" placeholder="recordatorio_turno" />
+      <button onclick="saveWaConfig()">Guardar configuración WA</button>
+    </div>
+  </div>
+
+  <!-- Sucursales -->
+  <div class="card">
+    <div class="card-header">
+      Sucursales
+      <button class="btn-sm" onclick="toggleAddBranch()">+ Agregar</button>
+    </div>
+    <div class="card-body">
+      <div id="addBranchForm" style="display:none;background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
+        <div class="row">
+          <div>
+            <label>Nombre</label>
+            <input type="text" id="newBranchName" placeholder="Sucursal Centro" />
+          </div>
+          <div>
+            <label>Dirección (opcional)</label>
+            <input type="text" id="newBranchAddress" placeholder="Av. Corrientes 1234" />
+          </div>
+        </div>
+        <button onclick="createBranch()">Crear sucursal</button>
+        <button class="danger btn-sm" style="margin-left:8px" onclick="toggleAddBranch()">Cancelar</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Nombre</th><th>Dirección</th><th>Estado</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="branchesBody">
+          <tr><td colspan="4" style="text-align:center;color:#999">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Staff -->
+  <div class="card">
+    <div class="card-header">
+      Profesionales
+      <button class="btn-sm" onclick="toggleAddStaff()">+ Agregar</button>
+    </div>
+    <div class="card-body">
+
+      <div id="addStaffForm">
+        <div class="row">
+          <div>
+            <label>Nombre</label>
+            <input type="text" id="newStaffName" placeholder="Pedro Ramírez" />
+          </div>
+          <div>
+            <label>Teléfono (con código de país, sin +) <span id="phoneRequiredHint" style="color:#e94560">*requerido para OWNER</span></label>
+            <input type="text" id="newStaffPhone" placeholder="5491112345678" />
+          </div>
+        </div>
+        <label>Rol</label>
+        <select id="newStaffRole" onchange="updatePhoneHint()">
+          <option value="MEMBER">Profesional (MEMBER)</option>
+          <option value="OWNER">Dueño (OWNER)</option>
+        </select>
+        <label>Sucursal (opcional)</label>
+        <select id="newStaffBranch">
+          <option value="">Sin sucursal asignada</option>
+        </select>
+        <div id="ownerPinField" style="display:none">
+          <label>PIN de acceso al dashboard <span style="color:#e94560">*solo para OWNER</span></label>
+          <input type="password" id="newStaffPin" placeholder="Mínimo 4 caracteres" />
+        </div>
+        <button onclick="createStaff()">Crear profesional</button>
+        <button class="danger btn-sm" style="margin-left:8px" onclick="toggleAddStaff()">Cancelar</button>
+      </div>
+
+      <table id="staffTable">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Teléfono</th>
+            <th>Rol</th>
+            <th>Sucursal</th>
+            <th>Estado</th>
+            <th style="text-align:center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="staffBody">
+          <tr><td colspan="6" style="text-align:center;color:#999">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Conversations Inbox -->
+  <div class="card">
+    <div class="card-header">
+      Conversaciones
+      <button class="btn-sm" onclick="loadConversations()">↻ Actualizar</button>
+    </div>
+    <div class="inbox">
+      <div class="conv-list" id="convList">
+        <div style="padding:16px;color:#aaa;font-size:0.85rem">Cargando...</div>
+      </div>
+      <div class="chat-pane" id="chatPane">
+        <div class="chat-placeholder">Seleccioná una conversación</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Services -->
+  <div class="card">
+    <div class="card-header">
+      Servicios
+      <button class="btn-sm" onclick="toggleAddService()">+ Agregar</button>
+    </div>
+    <div class="card-body">
+      <div id="addServiceForm" style="display:none;background:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:16px">
+        <div class="row">
+          <div>
+            <label>Nombre</label>
+            <input type="text" id="newSvcName" placeholder="Corte" />
+          </div>
+          <div>
+            <label>Duración (minutos)</label>
+            <input type="number" id="newSvcDuration" placeholder="30" />
+          </div>
+        </div>
+        <label>Precio</label>
+        <input type="number" id="newSvcPrice" placeholder="10000" />
+        <button onclick="createService()">Crear servicio</button>
+        <button class="danger btn-sm" style="margin-left:8px" onclick="toggleAddService()">Cancelar</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Nombre</th><th>Duración</th><th>Precio</th><th>Estado</th><th>Acciones</th></tr>
+        </thead>
+        <tbody id="servicesBody">
+          <tr><td colspan="5" style="text-align:center;color:#999">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<!-- Staff Hours Modal -->
+<div class="modal-backdrop" id="hoursModal">
+  <div class="modal">
+    <h3 id="hoursModalTitle">Horarios</h3>
+    <div class="hours-row" style="font-weight:600;font-size:0.8rem;color:#555">
+      <span>Día</span><span>Apertura</span><span>Cierre</span><span title="Activo">✓</span>
+    </div>
+    <div id="hoursRows"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button onclick="saveHours()">Guardar horarios</button>
+      <button class="danger btn-sm" onclick="closeHoursModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = '';
+
+  function getKey() {
+    return localStorage.getItem('admin_api_key') || '';
+  }
+
+  function saveKey() {
+    const k = document.getElementById('apiKey').value;
+    localStorage.setItem('admin_api_key', k);
+    toast('API key guardada');
+    loadAll();
+  }
+
+  function getBusinessId() {
+    return localStorage.getItem('selected_business_id') || '';
+  }
+
+  function headers() {
+    const h = { 'Content-Type': 'application/json', 'X-Admin-Api-Key': getKey() };
+    const bid = getBusinessId();
+    if (bid) h['X-Business-Id'] = bid;
+    return h;
+  }
+
+  async function apiFetch(path, opts = {}) {
+    const res = await fetch(API + path, { ...opts, headers: headers() });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`${res.status}: ${err}`);
+    }
+    return res.json();
+  }
+
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 3000);
+  }
+
+  // ── Business Selector ─────────────────────────────────────────
+
+  async function loadBusinessSelector() {
+    try {
+      const businesses = await fetch('/admin/business/all', { headers: headers() }).then(r => r.json());
+      const sel = document.getElementById('businessSelector');
+      if (!businesses.length) {
+        sel.innerHTML = '<option value="">Sin negocios</option>';
+        return;
+      }
+      const saved = getBusinessId() || businesses[0].id;
+      sel.innerHTML = businesses.map(b =>
+        `<option value="${b.id}" ${b.id === saved ? 'selected' : ''}>${escHtml(b.name)}</option>`
+      ).join('');
+      if (!getBusinessId()) {
+        localStorage.setItem('selected_business_id', businesses[0].id);
+      }
+    } catch (e) { /* silent */ }
+  }
+
+  function onBusinessChange() {
+    const id = document.getElementById('businessSelector').value;
+    localStorage.setItem('selected_business_id', id);
+    loadBusiness();
+    loadBusinessHours();
+    loadBranches();
+    loadStaff();
+    loadServices();
+    loadConversations();
+  }
+
+  // ── Business ──────────────────────────────────────────────────
+
+  async function loadBusiness() {
+    try {
+      const biz = await apiFetch('/admin/business');
+      const info = document.getElementById('businessInfo');
+      if (biz) {
+        info.style.display = 'block';
+        info.innerHTML = `<strong>${escHtml(biz.name)}</strong> &nbsp;|&nbsp; ${escHtml(biz.phoneNumber)} &nbsp;|&nbsp; ${escHtml(biz.timezone)}`;
+        document.getElementById('toggleEditBusinessBtn').style.display = 'inline-block';
+        document.getElementById('toggleBusinessFormBtn').textContent = '+ Crear otro';
+      }
+    } catch (e) { /* silent */ }
+  }
+
+  function toggleBusinessForm() {
+    const form = document.getElementById('createBusinessForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    document.getElementById('editBusinessForm').style.display = 'none';
+  }
+
+  function toggleEditBusinessForm() {
+    const form = document.getElementById('editBusinessForm');
+    const visible = form.style.display !== 'none';
+    form.style.display = visible ? 'none' : 'block';
+    document.getElementById('createBusinessForm').style.display = 'none';
+    if (!visible) {
+      // Pre-fill with current values from the info line
+      apiFetch('/admin/business').then(biz => {
+        if (!biz) return;
+        document.getElementById('editBizName').value = biz.name || '';
+        document.getElementById('editBizPhone').value = biz.phoneNumber || '';
+        document.getElementById('editBizTimezone').value = biz.timezone || '';
+        document.getElementById('editBizAddress').value = biz.address || '';
+        document.getElementById('editBizExtraInfo').value = biz.extraInfo || '';
+      });
+    }
+  }
+
+  async function updateBusiness() {
+    const body = {
+      name: document.getElementById('editBizName').value || undefined,
+      phoneNumber: document.getElementById('editBizPhone').value || undefined,
+      timezone: document.getElementById('editBizTimezone').value || undefined,
+      address: document.getElementById('editBizAddress').value || undefined,
+      extraInfo: document.getElementById('editBizExtraInfo').value || undefined,
+    };
+    try {
+      await apiFetch('/admin/business', { method: 'PATCH', body: JSON.stringify(body) });
+      toast('✅ Negocio actualizado');
+      toggleEditBusinessForm();
+      loadBusiness();
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  async function createBusiness() {
+    const body = {
+      name: document.getElementById('bizName').value,
+      phoneNumber: document.getElementById('bizPhone').value,
+      timezone: document.getElementById('bizTimezone').value || undefined,
+    };
+    if (!body.name || !body.phoneNumber) { toast('Nombre y teléfono son requeridos'); return; }
+    try {
+      const created = await apiFetch('/admin/business', { method: 'POST', body: JSON.stringify(body) });
+      localStorage.setItem('selected_business_id', created.id);
+      toast('✅ Negocio creado');
+      toggleBusinessForm();
+      await loadBusinessSelector();
+      loadAll();
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  // ── Business Hours ────────────────────────────────────────────
+
+  function toggleBizHours() {
+    const grid = document.getElementById('bizHoursGrid');
+    const btn = document.getElementById('bizHoursToggleBtn');
+    const open = grid.style.display === 'none';
+    grid.style.display = open ? 'block' : 'none';
+    btn.textContent = open ? '▲ Ocultar' : '▼ Ver';
+  }
+
+  async function loadBusinessHours() {
+    try {
+      const data = await apiFetch('/admin/business/hours');
+      const section = document.getElementById('businessHoursSection');
+      section.style.display = 'block';
+      const rows = document.getElementById('bizHoursRows');
+      rows.innerHTML = DAYS.map((day, i) => {
+        const h = data.find(x => x.dayOfWeek === i);
+        return `<div class="hours-row">
+          <span>${day}</span>
+          <input type="time" id="bizOpen_${i}" value="${h ? h.openTime : '09:00'}" />
+          <input type="time" id="bizClose_${i}" value="${h ? h.closeTime : '18:00'}" />
+          <input type="checkbox" id="bizActive_${i}" ${(!h || h.isActive) ? 'checked' : ''} />
+        </div>`;
+      }).join('');
+    } catch (e) { /* silent if no business yet */ }
+  }
+
+  async function saveBusinessHours() {
+    let ok = 0, fail = 0;
+    for (let i = 0; i < 7; i++) {
+      const isActive = document.getElementById(`bizActive_${i}`).checked;
+      const openTime = document.getElementById(`bizOpen_${i}`).value;
+      const closeTime = document.getElementById(`bizClose_${i}`).value;
+      try {
+        await apiFetch('/admin/business/hours', {
+          method: 'POST',
+          body: JSON.stringify({ dayOfWeek: i, openTime, closeTime, isActive }),
+        });
+        ok++;
+      } catch(e) { fail++; }
+    }
+    toast(fail === 0 ? `✅ Horarios guardados (${ok} días)` : `⚠️ ${ok} ok, ${fail} fallaron`);
+  }
+
+  // ── WA Config ────────────────────────────────────────────────
+
+  async function saveWaConfig() {
+    const body = {
+      waToken: document.getElementById('waToken').value || undefined,
+      waPhoneNumberId: document.getElementById('waPhoneNumberId').value || undefined,
+      waVerifyToken: document.getElementById('waVerifyToken').value || undefined,
+      waReminderTemplate: document.getElementById('waReminderTemplate').value || undefined,
+    };
+    try {
+      await apiFetch('/admin/business/config', { method: 'PATCH', body: JSON.stringify(body) });
+      toast('✅ Configuración WA guardada');
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  // ── Branches ──────────────────────────────────────────────────
+
+  let branchesCache = [];
+
+  function toggleAddBranch() {
+    const form = document.getElementById('addBranchForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function loadBranches() {
+    try {
+      const data = await apiFetch('/admin/branches');
+      branchesCache = data;
+      const tbody = document.getElementById('branchesBody');
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999">Sin sucursales — el bot no preguntará al cliente</td></tr>';
+      } else {
+        tbody.innerHTML = data.map(b => `
+          <tr>
+            <td>${escHtml(b.name)}</td>
+            <td>${escHtml(b.address) || '—'}</td>
+            <td><span class="tag ${b.isActive ? 'active' : 'inactive'}">${b.isActive ? 'Activa' : 'Inactiva'}</span></td>
+            <td>
+              <button class="btn-sm danger" onclick="toggleBranchActive('${b.id}', ${b.isActive})">
+                ${b.isActive ? 'Desactivar' : 'Activar'}
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      }
+      // Refresh branch dropdown in staff form
+      const sel = document.getElementById('newStaffBranch');
+      sel.innerHTML = '<option value="">Sin sucursal asignada</option>' +
+        data.filter(b => b.isActive).map(b => `<option value="${b.id}">${escHtml(b.name)}</option>`).join('');
+    } catch (e) {
+      document.getElementById('branchesBody').innerHTML =
+        '<tr><td colspan="4" style="text-align:center;color:#c00">Error: ' + e.message + '</td></tr>';
+    }
+  }
+
+  async function createBranch() {
+    const body = {
+      name: document.getElementById('newBranchName').value.trim(),
+      address: document.getElementById('newBranchAddress').value.trim() || undefined,
+    };
+    if (!body.name) { toast('El nombre es requerido'); return; }
+    try {
+      await apiFetch('/admin/branches', { method: 'POST', body: JSON.stringify(body) });
+      toast('✅ Sucursal creada');
+      document.getElementById('newBranchName').value = '';
+      document.getElementById('newBranchAddress').value = '';
+      toggleAddBranch();
+      loadBranches();
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  async function toggleBranchActive(id, currentlyActive) {
+    try {
+      await apiFetch(`/admin/branches/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: !currentlyActive }),
+      });
+      toast(currentlyActive ? 'Sucursal desactivada' : 'Sucursal activada');
+      loadBranches();
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  // ── Staff ─────────────────────────────────────────────────────
+
+  function toggleAddStaff() {
+    document.getElementById('addStaffForm').classList.toggle('open');
+  }
+
+  async function loadStaff() {
+    try {
+      const data = await apiFetch('/admin/staff');
+      const tbody = document.getElementById('staffBody');
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999">Sin profesionales registrados</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.map(s => {
+        const gcalBadge = s.googleAccessToken
+          ? '<span class="tag active" style="font-size:0.7rem">GCal ✓</span>'
+          : '<span class="tag inactive" style="font-size:0.7rem">Sin GCal</span>';
+        const hasOwnHours = s.staffHours && s.staffHours.length > 0;
+        const hoursBadge = hasOwnHours
+          ? '<span class="tag active" style="font-size:0.7rem" title="Tiene horarios propios configurados">Propios</span>'
+          : '<span class="tag" style="font-size:0.7rem;background:#f0f0f0;color:#666" title="Usa los horarios del negocio">Del negocio</span>';
+        const branchOptions = '<option value=""' + (!s.branchId ? ' selected' : '') + '>Sin sucursal</option>' +
+          branchesCache.filter(b => b.isActive || b.id === s.branchId).map(b =>
+            `<option value="${b.id}"${s.branchId === b.id ? ' selected' : ''}>${escHtml(b.name)}</option>`
+          ).join('');
+        return `<tr>
+          <td>${escHtml(s.name)}</td>
+          <td>${escHtml(s.phone) || '—'}</td>
+          <td><span class="tag ${s.role.toLowerCase()}">${s.role}</span></td>
+          <td>
+            <select onchange="changeStaffBranch('${s.id}', this.value)" style="margin:0;padding:4px 6px;font-size:0.8rem;border:1px solid #ccc;border-radius:4px;width:auto">
+              ${branchOptions}
+            </select>
+          </td>
+          <td><span class="tag ${s.isActive ? 'active' : 'inactive'}">${s.isActive ? 'Activo' : 'Inactivo'}</span></td>
+          <td style="display:flex;gap:6px;flex-wrap:nowrap;align-items:center;white-space:nowrap;justify-content:center">
+            ${gcalBadge}
+            ${hoursBadge}
+            <button class="btn-sm" onclick="openHoursModal('${s.id}', '${escHtml(s.name)}')">🕐 Horarios</button>
+            <button class="btn-sm" onclick="connectGoogleCalendar('${s.id}')">📅 GCal</button>
+            ${s.role === 'OWNER' ? `<button class="btn-sm" onclick="setOwnerPin('${s.id}')">🔑 PIN</button>` : ''}
+            <button class="btn-sm danger" onclick="toggleStaffActive('${s.id}', ${s.isActive})">
+              ${s.isActive ? 'Desactivar' : 'Activar'}
+            </button>
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (e) {
+      document.getElementById('staffBody').innerHTML =
+        '<tr><td colspan="5" style="text-align:center;color:#c00">Error: ' + e.message + '</td></tr>';
+    }
+  }
+
+  function updatePhoneHint() {
+    const isOwner = document.getElementById('newStaffRole').value === 'OWNER';
+    const hint = document.getElementById('phoneRequiredHint');
+    hint.textContent = isOwner ? '*requerido para OWNER' : '(opcional para MEMBER)';
+    hint.style.color = isOwner ? '#e94560' : '#999';
+    document.getElementById('ownerPinField').style.display = isOwner ? 'block' : 'none';
+  }
+
+  async function createStaff() {
+    const role = document.getElementById('newStaffRole').value;
+    const phone = document.getElementById('newStaffPhone').value.trim();
+    const branchId = document.getElementById('newStaffBranch').value || undefined;
+    const pin = document.getElementById('newStaffPin').value.trim();
+    const body = {
+      name: document.getElementById('newStaffName').value,
+      phone: phone || undefined,
+      role,
+      branchId,
+    };
+    if (!body.name) { toast('El nombre es requerido'); return; }
+    if (role === 'OWNER' && !phone) { toast('El teléfono es requerido para el dueño (OWNER)'); return; }
+    if (role === 'OWNER' && !pin) { toast('El PIN es requerido para el dueño (OWNER)'); return; }
+    try {
+      const created = await apiFetch('/admin/staff', { method: 'POST', body: JSON.stringify(body) });
+      // Set PIN separately if OWNER
+      if (role === 'OWNER' && pin) {
+        await apiFetch(`/admin/staff/${created.id}/pin`, { method: 'PATCH', body: JSON.stringify({ pin }) });
+      }
+      toast('✅ Profesional creado');
+      document.getElementById('newStaffName').value = '';
+      document.getElementById('newStaffPhone').value = '';
+      document.getElementById('newStaffPin').value = '';
+      toggleAddStaff();
+      loadStaff();
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  async function changeStaffBranch(id, branchId) {
+    try {
+      await apiFetch(`/admin/staff/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ branchId: branchId || null }),
+      });
+      toast('✅ Sucursal actualizada');
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+      loadStaff(); // revert UI
+    }
+  }
+
+  async function setOwnerPin(id) {
+    const pin = prompt('Nuevo PIN para el dueño (mínimo 4 caracteres):');
+    if (!pin) return;
+    if (pin.length < 4) { toast('PIN muy corto'); return; }
+    try {
+      await apiFetch(`/admin/staff/${id}/pin`, { method: 'PATCH', body: JSON.stringify({ pin }) });
+      toast('✅ PIN actualizado');
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  async function toggleStaffActive(id, currentlyActive) {
+    try {
+      await apiFetch(`/admin/staff/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: !currentlyActive }),
+      });
+      toast(currentlyActive ? 'Profesional desactivado' : 'Profesional activado');
+      loadStaff();
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  // ── Services ──────────────────────────────────────────────────
+
+  function toggleAddService() {
+    const form = document.getElementById('addServiceForm');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function createService() {
+    const body = {
+      name: document.getElementById('newSvcName').value,
+      durationMinutes: parseInt(document.getElementById('newSvcDuration').value),
+      price: parseFloat(document.getElementById('newSvcPrice').value),
+    };
+    if (!body.name || !body.durationMinutes || isNaN(body.price)) { toast('Todos los campos son requeridos'); return; }
+    try {
+      await apiFetch('/admin/services', { method: 'POST', body: JSON.stringify(body) });
+      toast('✅ Servicio creado');
+      document.getElementById('newSvcName').value = '';
+      document.getElementById('newSvcDuration').value = '';
+      document.getElementById('newSvcPrice').value = '';
+      toggleAddService();
+      loadServices();
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  async function toggleServiceActive(id, currentlyActive) {
+    try {
+      await apiFetch(`/admin/services/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: !currentlyActive }),
+      });
+      toast(currentlyActive ? 'Servicio desactivado' : 'Servicio activado');
+      loadServices();
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  async function loadServices() {
+    try {
+      const data = await apiFetch('/admin/services');
+      const tbody = document.getElementById('servicesBody');
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999">Sin servicios</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.map(s => `
+        <tr>
+          <td>${escHtml(s.name)}</td>
+          <td>${s.durationMinutes} min</td>
+          <td>$${s.price.toLocaleString('es-AR')}</td>
+          <td><span class="tag ${s.isActive ? 'active' : 'inactive'}">${s.isActive ? 'Activo' : 'Inactivo'}</span></td>
+          <td>
+            <button class="btn-sm danger" onclick="toggleServiceActive('${s.id}', ${s.isActive})">
+              ${s.isActive ? 'Desactivar' : 'Activar'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    } catch (e) {
+      document.getElementById('servicesBody').innerHTML =
+        '<tr><td colspan="5" style="text-align:center;color:#c00">Error: ' + e.message + '</td></tr>';
+    }
+  }
+
+  // ── Conversations Inbox ───────────────────────────────────────
+
+  let activeConvId = null;
+  let activeConvHumanMode = false;
+
+  async function loadConversations() {
+    try {
+      const data = await apiFetch('/admin/conversations');
+      const list = document.getElementById('convList');
+      if (!data.length) {
+        list.innerHTML = '<div style="padding:16px;color:#aaa;font-size:0.85rem">Sin conversaciones</div>';
+        return;
+      }
+      list.innerHTML = data.map(c => {
+        const name = c.contact.name || c.contact.phone;
+        const preview = c.lastMessagePreview ? c.lastMessagePreview.substring(0, 45) + (c.lastMessagePreview.length > 45 ? '…' : '') : '—';
+        const time = new Date(c.lastMessageAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const humanBadge = c.humanMode ? '<span class="tag human" style="font-size:0.7rem">Manual</span>' : '';
+        return `<div class="conv-item ${c.id === activeConvId ? 'active' : ''}" onclick="openConversation('${c.id}', ${c.humanMode})">
+          <div class="conv-meta">
+            <span class="conv-name">${escHtml(name)}</span>
+            ${humanBadge}
+          </div>
+          <div class="conv-meta">
+            <span class="conv-preview">${escHtml(preview)}</span>
+            <span class="conv-time">${time}</span>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      document.getElementById('convList').innerHTML = '<div style="padding:16px;color:#c00;font-size:0.85rem">Error: ' + e.message + '</div>';
+    }
+  }
+
+  async function openConversation(id, humanMode) {
+    activeConvId = id;
+    activeConvHumanMode = humanMode;
+    // Highlight active
+    document.querySelectorAll('.conv-item').forEach(el => el.classList.remove('active'));
+    const items = document.querySelectorAll('.conv-item');
+    items.forEach(el => { if (el.getAttribute('onclick').includes(`'${id}'`)) el.classList.add('active'); });
+
+    await loadMessages(id, humanMode);
+  }
+
+  async function loadMessages(id, humanMode) {
+    try {
+      const msgs = await apiFetch(`/admin/conversations/${id}/messages`);
+      const pane = document.getElementById('chatPane');
+      const humanLabel = humanMode
+        ? '<span class="tag human">Modo Manual activo</span>'
+        : '<span class="tag active">IA activa</span>';
+      const toggleLabel = humanMode ? 'Activar IA' : 'Tomar conversación';
+
+      pane.innerHTML = `
+        <div class="chat-header">
+          <span class="chat-title">Conversación</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            ${humanLabel}
+            <button class="btn-sm" onclick="toggleHumanMode('${id}', ${humanMode})">${toggleLabel}</button>
+            <button class="btn-sm danger" onclick="resetConversation('${id}')" title="Borra todos los mensajes y reinicia el estado">↺ Reset</button>
+          </div>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          ${msgs.length === 0 ? '<div style="color:#aaa;margin:auto">Sin mensajes</div>' : msgs.map(m => `
+            <div class="bubble ${m.direction === 'INBOUND' ? 'inbound' : 'outbound'}">
+              ${escHtml(m.content)}
+              <div class="bubble-time">${new Date(m.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="chat-input-bar">
+          <input type="text" id="replyInput" placeholder="Escribí tu respuesta..." onkeydown="if(event.key==='Enter') sendReply('${id}')" />
+          <button onclick="sendReply('${id}')">Enviar</button>
+        </div>
+      `;
+      // Scroll to bottom
+      const msgBox = document.getElementById('chatMessages');
+      if (msgBox) msgBox.scrollTop = msgBox.scrollHeight;
+    } catch (e) {
+      toast('❌ Error cargando mensajes: ' + e.message);
+    }
+  }
+
+  async function sendReply(id) {
+    const input = document.getElementById('replyInput');
+    const text = input?.value?.trim();
+    if (!text) return;
+    try {
+      await apiFetch(`/admin/conversations/${id}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      });
+      input.value = '';
+      toast('✅ Mensaje enviado');
+      await loadMessages(id, activeConvHumanMode);
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  async function resetConversation(id) {
+    if (!confirm('¿Seguro? Esto borra todos los mensajes y reinicia el estado del bot para esta conversación.')) return;
+    try {
+      await apiFetch(`/admin/conversations/${id}/reset`, { method: 'DELETE' });
+      toast('✅ Conversación reseteada');
+      await loadConversations();
+      await loadMessages(id, false);
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  async function toggleHumanMode(id, currentlyHuman) {
+    try {
+      const result = await apiFetch(`/admin/conversations/${id}/human-mode`, {
+        method: 'PATCH',
+        body: JSON.stringify({ humanMode: !currentlyHuman }),
+      });
+      activeConvHumanMode = result.humanMode;
+      toast(result.humanMode ? '🙋 Modo manual activado' : '🤖 IA reactivada');
+      await loadConversations();
+      await loadMessages(id, result.humanMode);
+    } catch (e) {
+      toast('❌ Error: ' + e.message);
+    }
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Staff Hours Modal ─────────────────────────────────────────
+
+  const DAYS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  let hoursStaffId = null;
+
+  async function openHoursModal(staffId, staffName) {
+    hoursStaffId = staffId;
+    document.getElementById('hoursModalTitle').textContent = `Horarios — ${staffName}`;
+
+    // Load existing hours
+    let existing = [];
+    try { existing = await apiFetch(`/admin/staff/${staffId}/hours`); } catch(e) {}
+
+    const rows = document.getElementById('hoursRows');
+    rows.innerHTML = DAYS.map((day, i) => {
+      const h = existing.find(x => x.dayOfWeek === i);
+      return `<div class="hours-row">
+        <span>${day}</span>
+        <input type="time" id="open_${i}" value="${h ? h.openTime : '09:00'}" />
+        <input type="time" id="close_${i}" value="${h ? h.closeTime : '18:00'}" />
+        <input type="checkbox" id="active_${i}" ${(!h || h.isActive) ? 'checked' : ''} />
+      </div>`;
+    }).join('');
+
+    document.getElementById('hoursModal').classList.add('open');
+  }
+
+  function closeHoursModal() {
+    document.getElementById('hoursModal').classList.remove('open');
+    hoursStaffId = null;
+  }
+
+  async function saveHours() {
+    if (!hoursStaffId) return;
+    let ok = 0, fail = 0;
+    for (let i = 0; i < 7; i++) {
+      const isActive = document.getElementById(`active_${i}`).checked;
+      const openTime = document.getElementById(`open_${i}`).value;
+      const closeTime = document.getElementById(`close_${i}`).value;
+      try {
+        await apiFetch(`/admin/staff/${hoursStaffId}/hours`, {
+          method: 'POST',
+          body: JSON.stringify({ dayOfWeek: i, openTime, closeTime, isActive }),
+        });
+        ok++;
+      } catch(e) { fail++; }
+    }
+    toast(fail === 0 ? `✅ Horarios guardados (${ok} días)` : `⚠️ ${ok} ok, ${fail} fallaron`);
+    closeHoursModal();
+  }
+
+  // Close modal clicking backdrop
+  document.getElementById('hoursModal').addEventListener('click', function(e) {
+    if (e.target === this) closeHoursModal();
+  });
+
+  // ── Google Calendar ───────────────────────────────────────────
+
+  function connectGoogleCalendar(staffId) {
+    // Opens the OAuth flow in a new tab — passes key as query param since browser can't set headers
+    window.open(`/admin/staff/${staffId}/google/connect?apiKey=${encodeURIComponent(getKey())}`, '_blank');
+  }
+
+  // Show feedback if returning from GCal OAuth flow
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('gcal') === 'connected') {
+    setTimeout(() => toast('✅ Google Calendar conectado'), 300);
+    history.replaceState({}, '', '/admin');
+  } else if (urlParams.get('gcal') === 'error') {
+    setTimeout(() => toast('❌ Error conectando Google Calendar'), 300);
+    history.replaceState({}, '', '/admin');
+  }
+
+  // ── Init ──────────────────────────────────────────────────────
+
+  function loadAll() {
+    loadBusinessSelector().then(() => {
+      loadBusiness();
+      loadBusinessHours();
+      loadBranches();
+      loadStaff();
+      loadServices();
+      loadConversations();
+    });
+  }
+
+  // Restore saved key
+  const saved = localStorage.getItem('admin_api_key');
+  if (saved) document.getElementById('apiKey').value = saved;
+
+  loadAll();
+</script>
+
+</body>
+</html>

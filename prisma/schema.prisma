@@ -1,0 +1,337 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// BUSINESS
+// ─────────────────────────────────────────
+
+model Business {
+  id          String   @id @default(cuid())
+  name        String
+  timezone    String   @default("America/Argentina/Buenos_Aires")
+  phoneNumber String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // General info — shown to clients via WhatsApp bot
+  address   String?  // Dirección física del negocio
+  extraInfo String?  // Info adicional: zona, referencias, horarios especiales, etc.
+
+  // WhatsApp credentials — configurable via admin panel, override .env values
+  waToken            String?  // Bearer token for this business's WA number
+  waPhoneNumberId    String?  // Meta phone_number_id for the client-facing WA number
+  waVerifyToken      String?  // Webhook verify token for this business
+  waReminderTemplate String?  // Approved Meta template name for appointment reminders (e.g. "recordatorio_turno")
+
+  contacts      Contact[]
+  conversations Conversation[]
+  messages      Message[]
+  services      Service[]
+  appointments  Appointment[]
+  sales         Sale[]
+  reminderLogs  ReminderLog[]
+  businessHours BusinessHours[]
+  staff         Staff[]
+  staffHours    StaffHours[]
+  branches      Branch[]
+
+  @@map("businesses")
+}
+
+// ─────────────────────────────────────────
+// CONTACT
+// ─────────────────────────────────────────
+
+model Contact {
+  id         String   @id @default(cuid())
+  businessId String
+  phone      String
+  name       String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business      Business       @relation(fields: [businessId], references: [id])
+  conversations Conversation[]
+  messages      Message[]
+  appointments  Appointment[]
+  sales         Sale[]
+
+  @@unique([businessId, phone])
+  @@map("contacts")
+}
+
+// ─────────────────────────────────────────
+// CONVERSATION
+// ─────────────────────────────────────────
+
+model Conversation {
+  id            String             @id @default(cuid())
+  businessId    String
+  contactId     String
+  status        ConversationStatus @default(OPEN)
+  lastMessageAt DateTime           @default(now())
+  // Booking state machine for multi-turn flows (e.g., staff preference)
+  // Shape: { step: "AWAITING_STAFF_PREFERENCE" | null, pendingIntent, pendingEntities, selectedStaffId }
+  state         Json?
+  // When true, AI is disabled for this conversation — owner replies manually from the inbox
+  humanMode     Boolean            @default(false)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id])
+  contact  Contact   @relation(fields: [contactId], references: [id])
+  messages Message[]
+
+  @@map("conversations")
+}
+
+// ─────────────────────────────────────────
+// MESSAGE
+// ─────────────────────────────────────────
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  businessId     String
+  contactId      String
+  direction      MessageDirection
+  type           MessageType      @default(TEXT)
+  content        String
+  rawPayload     Json?
+  createdAt      DateTime         @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  business     Business     @relation(fields: [businessId], references: [id])
+  contact      Contact      @relation(fields: [contactId], references: [id])
+
+  @@map("messages")
+}
+
+// ─────────────────────────────────────────
+// SERVICE (business services like haircut)
+// ─────────────────────────────────────────
+
+model Service {
+  id              String   @id @default(cuid())
+  businessId      String
+  name            String
+  durationMinutes Int      @default(30)
+  price           Float
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  business     Business      @relation(fields: [businessId], references: [id])
+  appointments Appointment[]
+
+  @@map("services")
+}
+
+// ─────────────────────────────────────────
+// APPOINTMENT
+// ─────────────────────────────────────────
+
+model Appointment {
+  id             String            @id @default(cuid())
+  businessId     String
+  contactId      String
+  serviceId      String?
+  serviceIds     String[]  // additional service IDs when multiple services are booked
+  staffId        String?   // which staff member handles this appointment
+  branchId       String?   // which branch (sucursal) this appointment is at
+  startsAt       DateTime
+  endsAt         DateTime
+  status         AppointmentStatus @default(PENDING)
+  source         AppointmentSource @default(WHATSAPP)
+  notes                 String?
+  reminderSentAt        DateTime?
+  googleCalendarEventId String?   // GCal event ID for sync (update/delete on reschedule/cancel)
+  createdAt             DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  business     Business      @relation(fields: [businessId], references: [id])
+  contact      Contact       @relation(fields: [contactId], references: [id])
+  service      Service?      @relation(fields: [serviceId], references: [id])
+  staff        Staff?        @relation(fields: [staffId], references: [id])
+  branch       Branch?       @relation(fields: [branchId], references: [id])
+  reminderLogs ReminderLog[]
+
+  @@map("appointments")
+}
+
+// ─────────────────────────────────────────
+// SALE / INCOME RECORD
+// ─────────────────────────────────────────
+
+model Sale {
+  id          String     @id @default(cuid())
+  businessId  String
+  contactId   String?
+  description String
+  amount      Float
+  source      SaleSource @default(WHATSAPP)
+  occurredAt  DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+  contact  Contact? @relation(fields: [contactId], references: [id])
+
+  @@map("sales")
+}
+
+// ─────────────────────────────────────────
+// REMINDER LOG
+// ─────────────────────────────────────────
+
+model ReminderLog {
+  id            String   @id @default(cuid())
+  appointmentId String
+  businessId    String
+  sentAt        DateTime @default(now())
+  status        String // SENT | FAILED
+  payload       Json?
+  createdAt     DateTime @default(now())
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+  business    Business    @relation(fields: [businessId], references: [id])
+
+  @@map("reminder_logs")
+}
+
+// ─────────────────────────────────────────
+// BUSINESS HOURS
+// ─────────────────────────────────────────
+
+model BusinessHours {
+  id         String  @id @default(cuid())
+  businessId String
+  dayOfWeek  Int // 0=Sunday, 1=Monday, ..., 6=Saturday
+  openTime   String // "HH:MM" in business local time
+  closeTime  String // "HH:MM" in business local time
+  isActive   Boolean @default(true)
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([businessId, dayOfWeek])
+  @@map("business_hours")
+}
+
+// ─────────────────────────────────────────
+// BRANCH (sucursal)
+// ─────────────────────────────────────────
+
+model Branch {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  address    String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business     Business      @relation(fields: [businessId], references: [id])
+  staff        Staff[]
+  appointments Appointment[]
+
+  @@map("branches")
+}
+
+// ─────────────────────────────────────────
+// STAFF
+// ─────────────────────────────────────────
+
+model Staff {
+  id         String    @id @default(cuid())
+  businessId String
+  branchId   String?   // null = no branch assigned (works across all)
+  name       String
+  phone      String?   // digits only — required for OWNER (Ovapy ID), optional for MEMBER
+  role       StaffRole @default(MEMBER)
+  isActive   Boolean   @default(true)
+  ownerPin   String?   // bcrypt hash — solo para OWNER, se usa para login en el dashboard
+  // Google Calendar OAuth2 — set via /admin/staff/:id/google/connect
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  DateTime?
+  googleCalendarId   String?   // "primary" or a specific calendar ID
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  business     Business      @relation(fields: [businessId], references: [id])
+  branch       Branch?       @relation(fields: [branchId], references: [id])
+  appointments Appointment[]
+  staffHours   StaffHours[]
+
+  @@unique([businessId, phone])
+  @@map("staff")
+}
+
+// ─────────────────────────────────────────
+// STAFF HOURS (individual schedule per staff member)
+// ─────────────────────────────────────────
+
+model StaffHours {
+  id         String  @id @default(cuid())
+  staffId    String
+  businessId String
+  dayOfWeek  Int     // 0=Sunday, 1=Monday, ..., 6=Saturday
+  openTime   String  // "HH:MM" in business local time
+  closeTime  String  // "HH:MM" in business local time
+  isActive   Boolean @default(true)
+
+  staff    Staff    @relation(fields: [staffId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@unique([staffId, dayOfWeek])
+  @@map("staff_hours")
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+
+enum ConversationStatus {
+  OPEN
+  CLOSED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum AppointmentSource {
+  WHATSAPP
+  MANUAL
+}
+
+enum SaleSource {
+  WHATSAPP
+  MANUAL
+}
+
+enum StaffRole {
+  OWNER
+  MEMBER
+}
