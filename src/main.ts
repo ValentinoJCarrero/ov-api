@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { AdminGuard } from './common/guards/admin.guard';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
@@ -38,6 +39,8 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: { persistAuthorization: true },
   });
+
+  app.getHttpAdapter().get('/health', (_req: Request, res: Response) => res.json({ status: 'ok' }));
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
