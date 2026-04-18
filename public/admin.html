@@ -48,6 +48,18 @@
     .hours-row input[type="time"] { padding: 6px 8px; margin: 0; }
     .hours-row input[type="checkbox"] { width: 16px; height: 16px; margin: 0; cursor: pointer; }
 
+    /* Token Usage */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .stat-box { background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; }
+    .stat-box .stat-label { font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+    .stat-box .stat-value { font-size: 1.5rem; font-weight: 700; color: #1a1a2e; }
+    .stat-box .stat-sub { font-size: 0.8rem; color: #555; margin-top: 4px; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 60px; margin-top: 12px; }
+    .bar-chart .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .bar-chart .bar { background: #1a1a2e; border-radius: 2px 2px 0 0; min-height: 2px; width: 100%; transition: background 0.2s; }
+    .bar-chart .bar:hover { background: #e94560; }
+    .bar-chart .bar-label { font-size: 0.6rem; color: #aaa; white-space: nowrap; }
+
     /* Inbox */
     .inbox { display: grid; grid-template-columns: 300px 1fr; gap: 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; min-height: 480px; background: #fff; }
     .conv-list { border-right: 1px solid #ddd; overflow-y: auto; max-height: 480px; }
@@ -320,6 +332,40 @@
           <tr><td colspan="5" style="text-align:center;color:#999">Cargando...</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Uso de Tokens IA -->
+  <div class="card">
+    <div class="card-header">
+      Uso de Tokens IA
+      <button class="btn-sm" onclick="loadTokenUsage()">↻ Actualizar</button>
+    </div>
+    <div class="card-body">
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-label">Hoy</div>
+          <div class="stat-value" id="tuTodayTokens">—</div>
+          <div class="stat-sub" id="tuTodayCost">cargando...</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Este mes</div>
+          <div class="stat-value" id="tuMonthTokens">—</div>
+          <div class="stat-sub" id="tuMonthCost">cargando...</div>
+        </div>
+      </div>
+      <table style="margin-bottom:20px">
+        <thead>
+          <tr><th>Tipo de llamada</th><th>Llamadas</th><th>Tokens totales</th></tr>
+        </thead>
+        <tbody id="tuCallTypeBody">
+          <tr><td colspan="3" style="text-align:center;color:#999">Cargando...</td></tr>
+        </tbody>
+      </table>
+      <div style="font-size:0.8rem;color:#777;margin-bottom:6px;font-weight:600">Últimos 7 días (tokens)</div>
+      <div class="bar-chart" id="tuBarChart">
+        <div style="color:#aaa;font-size:0.8rem">Cargando...</div>
+      </div>
     </div>
   </div>
 
@@ -1027,6 +1073,60 @@
     history.replaceState({}, '', '/admin');
   }
 
+  // ── Token Usage ───────────────────────────────────────────────
+
+  async function loadTokenUsage() {
+    try {
+      const data = await apiFetch('/admin/token-usage');
+
+      document.getElementById('tuTodayTokens').textContent =
+        (data.today.totalTokens || 0).toLocaleString('es-AR') + ' tokens';
+      document.getElementById('tuTodayCost').textContent =
+        'Costo estimado: $' + data.today.estimatedCostUsd.toFixed(4) + ' USD';
+
+      document.getElementById('tuMonthTokens').textContent =
+        (data.thisMonth.totalTokens || 0).toLocaleString('es-AR') + ' tokens';
+      document.getElementById('tuMonthCost').textContent =
+        'Costo estimado: $' + data.thisMonth.estimatedCostUsd.toFixed(4) + ' USD';
+
+      const callTypeLabels = {
+        PARSE_INTENT: 'Clasificar intención',
+        PARSE_STAFF_INTENT: 'Intención de staff',
+        ANSWER_QUESTION: 'Respuesta general',
+      };
+      const tbody = document.getElementById('tuCallTypeBody');
+      if (!data.byCallType || !data.byCallType.length) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#999">Sin datos aún</td></tr>';
+      } else {
+        tbody.innerHTML = data.byCallType.map(r =>
+          `<tr>
+            <td>${callTypeLabels[r.callType] || r.callType}</td>
+            <td>${r.count.toLocaleString('es-AR')}</td>
+            <td>${r.totalTokens.toLocaleString('es-AR')}</td>
+          </tr>`
+        ).join('');
+      }
+
+      const last7 = (data.dailySummary || []).slice(-7);
+      const maxVal = Math.max(...last7.map(d => d.totalTokens), 1);
+      const chart = document.getElementById('tuBarChart');
+      if (!last7.length) {
+        chart.innerHTML = '<div style="color:#aaa;font-size:0.8rem">Sin datos aún</div>';
+      } else {
+        chart.innerHTML = last7.map(d => {
+          const heightPct = Math.max(Math.round((d.totalTokens / maxVal) * 100), 2);
+          const label = d.date.slice(5);
+          return `<div class="bar-col" title="${d.date}: ${d.totalTokens.toLocaleString('es-AR')} tokens">
+            <div class="bar" style="height:${heightPct}%"></div>
+            <div class="bar-label">${label}</div>
+          </div>`;
+        }).join('');
+      }
+    } catch (e) {
+      console.warn('Token usage load failed', e);
+    }
+  }
+
   // ── Init ──────────────────────────────────────────────────────
 
   function loadAll() {
@@ -1037,6 +1137,7 @@
       loadStaff();
       loadServices();
       loadConversations();
+      loadTokenUsage();
     });
   }
 

@@ -1,17 +1,36 @@
 import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import { ParsedIntent, Intent } from './types/intent.types';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly client: OpenAI;
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     this.client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       timeout: 8000,
     });
+  }
+
+  private logTokenUsage(
+    callType: 'PARSE_INTENT' | 'PARSE_STAFF_INTENT' | 'ANSWER_QUESTION',
+    usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined,
+    businessId?: string,
+  ): void {
+    if (!usage) return;
+    void this.prisma.tokenUsageLog.create({
+      data: {
+        businessId: businessId ?? null,
+        model: 'gpt-4o-mini',
+        promptTokens: usage.prompt_tokens,
+        completionTokens: usage.completion_tokens,
+        totalTokens: usage.total_tokens,
+        callType,
+      },
+    }).catch((err) => this.logger.warn('Failed to log token usage', err?.message));
   }
 
   /**
@@ -28,6 +47,7 @@ export class AiService {
     staffNames: string[] = [],
     isOvapyMember = false,
     conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    businessId?: string,
   ): Promise<ParsedIntent> {
     const systemPrompt = this.buildSystemPrompt(isAdmin, availableServices, staffNames, isOvapyMember);
 
@@ -46,6 +66,8 @@ export class AiService {
 
       const raw = response.choices[0].message.content;
       const parsed = JSON.parse(raw);
+
+      this.logTokenUsage('PARSE_INTENT', response.usage, businessId);
 
       // Support both single-intent {"intent":"X"} and multi-intent {"intents":["X","Y"]}
       const intents: Intent[] = parsed.intents
@@ -157,6 +179,7 @@ ${staffNames.length > 0 ? `- staffName: si el cliente menciona un profesional, e
   async parseStaffIntent(
     message: string,
     availableServices: string[],
+    businessId?: string,
   ): Promise<ParsedIntent> {
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = this.getTomorrow();
@@ -207,6 +230,8 @@ Reglas:
       const raw = response.choices[0].message.content;
       const parsed = JSON.parse(raw);
 
+      this.logTokenUsage('PARSE_STAFF_INTENT', response.usage, businessId);
+
       if (!parsed.intent) return { intent: 'UNKNOWN', entities: {} };
       return { intent: parsed.intent as Intent, entities: parsed.entities ?? {} };
     } catch (err) {
@@ -219,7 +244,7 @@ Reglas:
    * Generates a natural free-form answer to a general business question
    * using the provided business context (address, hours, extra info, etc.)
    */
-  async answerGeneralQuestion(userMessage: string, businessContext: string): Promise<string> {
+  async answerGeneralQuestion(userMessage: string, businessContext: string, businessId?: string): Promise<string> {
     try {
       const response = await this.client.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -233,6 +258,7 @@ Reglas:
         temperature: 0.3,
         max_tokens: 200,
       });
+      this.logTokenUsage('ANSWER_QUESTION', response.usage, businessId);
       return response.choices[0].message.content?.trim() ?? '';
     } catch (err) {
       this.logger.error('answerGeneralQuestion failed', err?.message);

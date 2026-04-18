@@ -40,6 +40,7 @@ model Business {
   staff         Staff[]
   staffHours    StaffHours[]
   branches      Branch[]
+  tokenUsageLogs TokenUsageLog[]
 
   @@map("businesses")
 }
@@ -334,4 +335,31 @@ enum SaleSource {
 enum StaffRole {
   OWNER
   MEMBER
+}
+
+// ─────────────────────────────────────────
+// TOKEN USAGE LOG
+// ─────────────────────────────────────────
+
+model TokenUsageLog {
+  id               String     @id @default(cuid())
+  businessId       String?
+  model            String     @default("gpt-4o-mini")
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  callType         AiCallType
+  createdAt        DateTime   @default(now())
+
+  business Business? @relation(fields: [businessId], references: [id])
+
+  @@index([createdAt])
+  @@index([businessId, createdAt])
+  @@map("token_usage_logs")
+}
+
+enum AiCallType {
+  PARSE_INTENT
+  PARSE_STAFF_INTENT
+  ANSWER_QUESTION
 }

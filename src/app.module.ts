@@ -16,6 +16,7 @@ import { BranchModule } from './branches/branch.module';
 import { AdminModule } from './admin/admin.module';
 import { OwnerModule } from './owner/owner.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
+import { TokenUsageModule } from './token-usage/token-usage.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
     BranchModule,
     AdminModule,
     OwnerModule,
+    TokenUsageModule,
     // Integration modules
     AiModule,
     WhatsappModule,

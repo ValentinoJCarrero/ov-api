@@ -111,7 +111,7 @@ export class WhatsappService {
 
     const serviceNames = await this.servicesService.getServiceNames(business.id);
 
-    const parsed = await this.aiService.parseIntent(messageText, true, serviceNames, []);
+    const parsed = await this.aiService.parseIntent(messageText, true, serviceNames, [], false, [], business.id);
 
     this.logger.log(`Ovapy intent [${senderPhone}] (OWNER): ${parsed.intent}`);
 
@@ -197,6 +197,7 @@ export class WhatsappService {
       staffNames,
       false,
       conversationHistory,
+      business.id,
     );
 
     this.logger.log(`Client intent [${senderPhone}]: ${parsed.intent} | entities: ${JSON.stringify(parsed.entities)}`);
@@ -404,7 +405,7 @@ export class WhatsappService {
     business: any,
   ): Promise<void> {
     const serviceNames = await this.servicesService.getServiceNames(business.id);
-    const parsed = await this.aiService.parseStaffIntent(messageText, serviceNames);
+    const parsed = await this.aiService.parseStaffIntent(messageText, serviceNames, business.id);
 
     this.logger.log(`Staff self-service [${senderPhone}] (${staffMember.name}): ${parsed.intent} | ${JSON.stringify(parsed.entities)}`);
 

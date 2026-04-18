@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "WhatsApp-based appointment and sales management system for barbershops",
   "scripts": {
-    "build": "nest build",
+    "build": "prisma generate && nest build",
     "start": "node dist/main",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",

@@ -667,6 +667,7 @@ export class ActionDispatcherService {
       const response = await this.aiService.answerGeneralQuestion(
         rawMessage ?? '',
         contextLines.join('\n'),
+        business.id,
       );
       return response;
     } catch {
