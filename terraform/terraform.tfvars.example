@@ -1,0 +1,43 @@
+# ─── GCP ───────────────────────────────────────────────────────────────────────
+project_id = "ovapy-492520"
+region     = "us-central1"
+
+# ─── Service ───────────────────────────────────────────────────────────────────
+service_name    = "ovapy-api"
+docker_image    = "us-central1-docker.pkg.dev/ovapy-492520/ovapy-api/ovapy-api:latest"
+service_memory  = "512Mi"
+service_cpu     = "1"
+min_instances   = 1
+max_instances   = 10
+timeout_seconds = 300
+
+# ─── Database ──────────────────────────────────────────────────────────────────
+db_name                = "ovapy"
+db_username            = "ovapy_user"
+db_password            = "CHANGE_ME"
+db_tier                = "db-f1-micro"
+db_high_availability   = false
+db_deletion_protection = true
+
+# ─── Application ───────────────────────────────────────────────────────────────
+app_env          = "production"
+admin_api_key    = "CHANGE_ME"
+owner_jwt_secret = "CHANGE_ME"
+
+# ─── WhatsApp ──────────────────────────────────────────────────────────────────
+whatsapp_token        = "CHANGE_ME"
+ovapy_phone_number_id = "CHANGE_ME"
+whatsapp_verify_token = "CHANGE_ME"
+
+# ─── OpenAI ────────────────────────────────────────────────────────────────────
+openai_api_key = "CHANGE_ME"
+
+# ─── Google Calendar OAuth2 ────────────────────────────────────────────────────
+google_client_id     = "CHANGE_ME"
+google_client_secret = "CHANGE_ME"
+
+# ─── Labels ────────────────────────────────────────────────────────────────────
+common_labels = {
+  project   = "ovapy-api"
+  terraform = "true"
+}
