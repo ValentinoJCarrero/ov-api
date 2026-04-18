@@ -181,6 +181,13 @@ variable "google_client_secret" {
   sensitive   = true
 }
 
+variable "google_redirect_uri" {
+  description = "Google OAuth2 redirect URI"
+  type        = string
+  default     = "https://backend.ovapy.com/admin/staff/google/callback"
+}
+
+
 # ─── Labels ────────────────────────────────────────────────────────────────────
 
 variable "common_labels" {

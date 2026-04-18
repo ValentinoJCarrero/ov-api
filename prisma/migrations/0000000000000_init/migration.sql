@@ -19,6 +19,9 @@ CREATE TYPE "SaleSource" AS ENUM ('WHATSAPP', 'MANUAL');
 -- CreateEnum
 CREATE TYPE "StaffRole" AS ENUM ('OWNER', 'MEMBER');
 
+-- CreateEnum
+CREATE TYPE "AiCallType" AS ENUM ('PARSE_INTENT', 'PARSE_STAFF_INTENT', 'ANSWER_QUESTION');
+
 -- CreateTable
 CREATE TABLE "businesses" (
     "id" TEXT NOT NULL,
@@ -27,9 +30,16 @@ CREATE TABLE "businesses" (
     "phoneNumber" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "address" TEXT,
+    "extraInfo" TEXT,
     "waToken" TEXT,
     "waPhoneNumberId" TEXT,
     "waVerifyToken" TEXT,
+    "waReminderTemplate" TEXT,
+    "sheetsSpreadsheetId" TEXT,
+    "googleAccessToken" TEXT,
+    "googleRefreshToken" TEXT,
+    "googleTokenExpiry" TIMESTAMP(3),
 
     CONSTRAINT "businesses_pkey" PRIMARY KEY ("id")
 );
@@ -55,6 +65,7 @@ CREATE TABLE "conversations" (
     "status" "ConversationStatus" NOT NULL DEFAULT 'OPEN',
     "lastMessageAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "state" JSONB,
+    "humanMode" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -96,13 +107,16 @@ CREATE TABLE "appointments" (
     "businessId" TEXT NOT NULL,
     "contactId" TEXT NOT NULL,
     "serviceId" TEXT,
+    "serviceIds" TEXT[],
     "staffId" TEXT,
+    "branchId" TEXT,
     "startsAt" TIMESTAMP(3) NOT NULL,
     "endsAt" TIMESTAMP(3) NOT NULL,
     "status" "AppointmentStatus" NOT NULL DEFAULT 'PENDING',
     "source" "AppointmentSource" NOT NULL DEFAULT 'WHATSAPP',
     "notes" TEXT,
     "reminderSentAt" TIMESTAMP(3),
+    "googleCalendarEventId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -150,13 +164,32 @@ CREATE TABLE "business_hours" (
 );
 
 -- CreateTable
-CREATE TABLE "staff" (
+CREATE TABLE "branches" (
     "id" TEXT NOT NULL,
     "businessId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "phone" TEXT NOT NULL,
+    "address" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "branches_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "staff" (
+    "id" TEXT NOT NULL,
+    "businessId" TEXT NOT NULL,
+    "branchId" TEXT,
+    "name" TEXT NOT NULL,
+    "phone" TEXT,
     "role" "StaffRole" NOT NULL DEFAULT 'MEMBER',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "ownerPin" TEXT,
+    "googleAccessToken" TEXT,
+    "googleRefreshToken" TEXT,
+    "googleTokenExpiry" TIMESTAMP(3),
+    "googleCalendarId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -176,6 +209,20 @@ CREATE TABLE "staff_hours" (
     CONSTRAINT "staff_hours_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "token_usage_logs" (
+    "id" TEXT NOT NULL,
+    "businessId" TEXT,
+    "model" TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+    "promptTokens" INTEGER NOT NULL,
+    "completionTokens" INTEGER NOT NULL,
+    "totalTokens" INTEGER NOT NULL,
+    "callType" "AiCallType" NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "token_usage_logs_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "businesses_phoneNumber_key" ON "businesses"("phoneNumber");
 
@@ -190,6 +237,12 @@ CREATE UNIQUE INDEX "staff_businessId_phone_key" ON "staff"("businessId", "phone
 
 -- CreateIndex
 CREATE UNIQUE INDEX "staff_hours_staffId_dayOfWeek_key" ON "staff_hours"("staffId", "dayOfWeek");
+
+-- CreateIndex
+CREATE INDEX "token_usage_logs_createdAt_idx" ON "token_usage_logs"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "token_usage_logs_businessId_createdAt_idx" ON "token_usage_logs"("businessId", "createdAt");
 
 -- AddForeignKey
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "businesses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -225,6 +278,9 @@ ALTER TABLE "appointments" ADD CONSTRAINT "appointments_serviceId_fkey" FOREIGN 
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_staffId_fkey" FOREIGN KEY ("staffId") REFERENCES "staff"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "branches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "sales" ADD CONSTRAINT "sales_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "businesses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -240,10 +296,20 @@ ALTER TABLE "reminder_logs" ADD CONSTRAINT "reminder_logs_businessId_fkey" FOREI
 ALTER TABLE "business_hours" ADD CONSTRAINT "business_hours_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "businesses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "branches" ADD CONSTRAINT "branches_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "businesses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "staff" ADD CONSTRAINT "staff_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "businesses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "staff" ADD CONSTRAINT "staff_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "branches"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "staff_hours" ADD CONSTRAINT "staff_hours_staffId_fkey" FOREIGN KEY ("staffId") REFERENCES "staff"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "staff_hours" ADD CONSTRAINT "staff_hours_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "businesses"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "token_usage_logs" ADD CONSTRAINT "token_usage_logs_businessId_fkey" FOREIGN KEY ("businessId") REFERENCES "businesses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+

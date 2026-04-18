@@ -16,6 +16,7 @@ import { BranchModule } from './branches/branch.module';
 import { AdminModule } from './admin/admin.module';
 import { OwnerModule } from './owner/owner.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
+import { GoogleSheetsModule } from './google-sheets/google-sheets.module';
 import { TokenUsageModule } from './token-usage/token-usage.module';
 
 @Module({
@@ -43,6 +44,7 @@ import { TokenUsageModule } from './token-usage/token-usage.module';
     WhatsappModule,
     RemindersModule,
     GoogleCalendarModule,
+    GoogleSheetsModule,
   ],
 })
 export class AppModule {}

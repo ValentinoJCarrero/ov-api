@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Headers, Logger, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Headers, Query, Logger, NotFoundException, Redirect } from '@nestjs/common';
 import { BusinessService } from './business.service';
 import { IsString, IsOptional } from 'class-validator';
 import { ApiTags, ApiOperation, ApiSecurity, ApiHeader, ApiResponse } from '@nestjs/swagger';
@@ -19,6 +19,10 @@ class UpdateWaConfigDto {
   @IsString()
   @IsOptional()
   waReminderTemplate?: string;
+
+  @IsString()
+  @IsOptional()
+  sheetsSpreadsheetId?: string;
 }
 
 class CreateBusinessDto {
@@ -116,7 +120,7 @@ export class BusinessController {
     );
   }
 
-  @ApiOperation({ summary: 'Actualizar credenciales de WhatsApp del negocio' })
+  @ApiOperation({ summary: 'Actualizar credenciales de WhatsApp / integraciones del negocio' })
   @Patch('config')
   async updateWaConfig(
     @Body() dto: UpdateWaConfigDto,
@@ -124,5 +128,34 @@ export class BusinessController {
   ) {
     const business = await this.businessService.resolveBusiness(businessId);
     return this.businessService.updateWaConfig(business.id, dto);
+  }
+
+  @ApiOperation({ summary: 'Iniciar conexión de Google Drive del negocio (para auto-compartir sheets)' })
+  @Get('google/connect')
+  async googleConnect(@Headers('x-business-id') businessId?: string) {
+    const business = await this.businessService.resolveBusiness(businessId);
+    const url = this.businessService.getGoogleAuthUrl(business.id);
+    return { url };
+  }
+
+  @ApiOperation({ summary: 'Callback OAuth2 Google para el negocio' })
+  @Get('google/callback')
+  @Redirect('/admin')
+  async googleCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+  ) {
+    const businessId = state?.replace('business:', '');
+    await this.businessService.handleGoogleCallback(code, businessId);
+  }
+
+  @ApiOperation({ summary: 'Estado de conexión Google Drive del negocio' })
+  @Get('google/status')
+  async googleStatus(@Headers('x-business-id') businessId?: string) {
+    const business = await this.businessService.resolveBusiness(businessId);
+    return {
+      connected: !!(business as any).googleAccessToken && !!(business as any).googleRefreshToken,
+      serviceAccountEmail: this.businessService.getServiceAccountEmail(),
+    };
   }
 }

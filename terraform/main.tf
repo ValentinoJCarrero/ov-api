@@ -150,7 +150,7 @@ resource "google_cloud_run_v2_service" "app" {
 
       env {
         name  = "GOOGLE_REDIRECT_URI"
-        value = "${google_cloud_run_v2_service.app.uri}/admin/staff/google/callback"
+        value = var.google_redirect_uri
       }
 
       # ── Startup probe (allows Prisma migrations to complete) ─────────────────

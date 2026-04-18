@@ -54,6 +54,7 @@ output "health_check_url" {
   value       = "${google_cloud_run_v2_service.app.uri}/health"
 }
 
+
 output "google_redirect_uri" {
   description = "Google OAuth2 redirect URI to register in Google Cloud Console"
   value       = "${google_cloud_run_v2_service.app.uri}/admin/staff/google/callback"

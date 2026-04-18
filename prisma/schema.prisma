@@ -29,6 +29,12 @@ model Business {
   waVerifyToken      String?  // Webhook verify token for this business
   waReminderTemplate String?  // Approved Meta template name for appointment reminders (e.g. "recordatorio_turno")
 
+  // Google Sheets integration
+  sheetsSpreadsheetId   String?    // ID of the Google Spreadsheet for appointment visualization
+  googleAccessToken     String?    // Business owner's Google OAuth token (Drive scope — for auto-sharing sheets)
+  googleRefreshToken    String?
+  googleTokenExpiry     DateTime?
+
   contacts      Contact[]
   conversations Conversation[]
   messages      Message[]

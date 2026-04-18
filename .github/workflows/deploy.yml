@@ -91,6 +91,7 @@ jobs:
 
           google_client_id     = "${{ secrets.GOOGLE_CLIENT_ID }}"
           google_client_secret = "${{ secrets.GOOGLE_CLIENT_SECRET }}"
+          google_redirect_uri  = "${{ secrets.GOOGLE_REDIRECT_URI }}"
 
           common_labels = {
             project   = "ovapy-api"

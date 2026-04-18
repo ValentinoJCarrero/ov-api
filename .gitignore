@@ -3,3 +3,15 @@ dist/
 .env
 .claude/
 *.log
+
+# Terraform state and secrets
+terraform.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

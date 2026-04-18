@@ -88,7 +88,7 @@ export class ActionDispatcherService {
         default:
           return this.handleUnknown();
       }
-    } catch (err) {
+    } catch (err: any) {
       this.logger.error(`Dispatcher error for intent ${intent}`, err?.message);
       if (err?.status === 409 || err?.message?.includes('disponible')) {
         return err.message;
@@ -649,18 +649,29 @@ export class ActionDispatcherService {
 
   private async handleGeneralQuestion(ctx: DispatchContext): Promise<string> {
     const { business, rawMessage } = ctx;
-    const b = business as any; // address/extraInfo added via migration
+    const b = business as any;
 
     const address = b.address as string | null;
     const extraInfo = b.extraInfo as string | null;
 
-    if (!address && !extraInfo) {
+    const branches = await this.branchService.findActiveByBusiness(business.id);
+
+    const hasBranches = branches.length > 0;
+    if (!address && !extraInfo && !hasBranches) {
       return 'Por el momento no tenemos esa información disponible. ¡Escribinos por este medio para más consultas!';
     }
 
-    // Build a concise context for GPT to answer naturally
     const contextLines: string[] = [`Negocio: ${business.name}`];
     if (address) contextLines.push(`Dirección: ${address}`);
+    if (hasBranches) {
+      contextLines.push('Sucursales:');
+      for (const branch of branches) {
+        const line = branch.address
+          ? `  - ${branch.name}: ${branch.address}`
+          : `  - ${branch.name}`;
+        contextLines.push(line);
+      }
+    }
     if (extraInfo) contextLines.push(`Info adicional: ${extraInfo}`);
 
     try {
@@ -671,9 +682,14 @@ export class ActionDispatcherService {
       );
       return response;
     } catch {
-      // Fallback: return raw info
       const lines: string[] = [];
       if (address) lines.push(`📍 *Dirección:* ${address}`);
+      if (hasBranches) {
+        lines.push('*Sucursales:*');
+        for (const branch of branches) {
+          lines.push(branch.address ? `• ${branch.name}: ${branch.address}` : `• ${branch.name}`);
+        }
+      }
       if (extraInfo) lines.push(extraInfo);
       return lines.join('\n');
     }

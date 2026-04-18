@@ -1,6 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
 import { Business } from '@prisma/client';
+import { google } from 'googleapis';
 
 @Injectable()
 export class BusinessService {
@@ -8,7 +10,10 @@ export class BusinessService {
   // Simple in-memory cache — valid for single-tenant MVP
   private cachedBusiness: Business | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly googleSheetsService: GoogleSheetsService,
+  ) {}
 
   /**
    * Returns all business records.
@@ -72,17 +77,61 @@ export class BusinessService {
   }
 
   /**
-   * Updates configurable WA credentials for a business (called from admin panel).
+   * Updates configurable WA + integration credentials for a business.
+   * If sheetsSpreadsheetId is provided and the business has a Google token, auto-shares the sheet.
    */
   async updateWaConfig(
     businessId: string,
-    config: { waToken?: string; waPhoneNumberId?: string; waVerifyToken?: string; waReminderTemplate?: string },
+    config: { waToken?: string; waPhoneNumberId?: string; waVerifyToken?: string; waReminderTemplate?: string; sheetsSpreadsheetId?: string },
   ): Promise<Business> {
     this.invalidateCache();
-    return this.prisma.business.update({
+    const updated = await this.prisma.business.update({
       where: { id: businessId },
       data: config,
     });
+
+    if (config.sheetsSpreadsheetId && updated.googleAccessToken && updated.googleRefreshToken) {
+      this.googleSheetsService.shareWithServiceAccount(config.sheetsSpreadsheetId, {
+        accessToken: updated.googleAccessToken,
+        refreshToken: updated.googleRefreshToken,
+        tokenExpiry: updated.googleTokenExpiry,
+      }).catch((err) => this.logger.error('Auto-share sheets failed', err?.message));
+    }
+
+    return updated;
+  }
+
+  getGoogleAuthUrl(businessId: string): string {
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI?.replace('/staff/', '/business/'),
+    );
+    return oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: ['https://www.googleapis.com/auth/drive'],
+      state: `business:${businessId}`,
+    });
+  }
+
+  async handleGoogleCallback(code: string, businessId: string): Promise<void> {
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI?.replace('/staff/', '/business/'),
+    );
+    const { tokens } = await oauth2Client.getToken(code);
+    this.invalidateCache();
+    await this.prisma.business.update({
+      where: { id: businessId },
+      data: {
+        googleAccessToken: tokens.access_token,
+        googleRefreshToken: tokens.refresh_token ?? undefined,
+        googleTokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : undefined,
+      },
+    });
+    this.logger.log(`Google Drive connected for business ${businessId}`);
   }
 
   /**
@@ -136,6 +185,10 @@ export class BusinessService {
       update: { openTime, closeTime, isActive },
       create: { businessId, dayOfWeek, openTime, closeTime, isActive },
     });
+  }
+
+  getServiceAccountEmail(): string | null {
+    return this.googleSheetsService.getServiceAccountEmail();
   }
 
   /**

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Appointment, AppointmentStatus, AppointmentSource } from '@prisma/client';
 import { ServicesService } from '../services/services.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
+import { GoogleSheetsService } from '../google-sheets/google-sheets.service';
 import { addMinutes, startOfDay, endOfDay, parseISO, isBefore, isAfter } from 'date-fns';
 import { toZonedTime, fromZonedTime, format } from 'date-fns-tz';
 
@@ -35,6 +36,7 @@ export class AppointmentsService {
     private readonly prisma: PrismaService,
     private readonly servicesService: ServicesService,
     private readonly googleCalendarService: GoogleCalendarService,
+    private readonly googleSheetsService: GoogleSheetsService,
   ) {}
 
   /**
@@ -297,6 +299,18 @@ export class AppointmentsService {
       this.logger.error(`GCal sync failed for appointment ${booked.id}`, err?.message),
     );
 
+    // Sync to Google Sheets
+    const staffName = (booked as any).staff?.name;
+    if (staffName) {
+      this.getBusinessSheetsId(businessId).then((sheetsId) => {
+        if (sheetsId) {
+          this.googleSheetsService.markSlot(sheetsId, booked.startsAt, staffName).catch((err) =>
+            this.logger.error(`Sheets sync failed for appointment ${booked.id}`, err?.message),
+          );
+        }
+      }).catch(() => {});
+    }
+
     return booked;
   }
 
@@ -373,13 +387,23 @@ export class AppointmentsService {
   }
 
   async cancelById(appointmentId: string): Promise<void> {
-    const appt = await this.prisma.appointment.update({
+    const appt = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
-      data: { status: 'CANCELLED' },
+      include: { staff: true },
     }) as any;
 
-    if (appt.staffId && appt.googleCalendarEventId) {
+    await this.prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status: 'CANCELLED' },
+    });
+
+    if (appt?.staffId && appt?.googleCalendarEventId) {
       this.googleCalendarService.deleteEvent(appt.staffId, appt.googleCalendarEventId).catch(() => {});
+    }
+    if (appt?.startsAt && appt?.staff?.name) {
+      this.getBusinessSheetsId(appt.businessId).then((sheetsId) => {
+        if (sheetsId) this.googleSheetsService.clearSlot(sheetsId, appt.startsAt, appt.staff.name).catch(() => {});
+      }).catch(() => {});
     }
   }
 
@@ -396,6 +420,11 @@ export class AppointmentsService {
     const appt = upcoming[0] as any;
     if (appt.staffId && appt.googleCalendarEventId) {
       this.googleCalendarService.deleteEvent(appt.staffId, appt.googleCalendarEventId).catch(() => {});
+    }
+    if (appt.startsAt && appt.staff?.name) {
+      this.getBusinessSheetsId(appt.businessId).then((sheetsId) => {
+        if (sheetsId) this.googleSheetsService.clearSlot(sheetsId, appt.startsAt, appt.staff.name).catch(() => {});
+      }).catch(() => {});
     }
 
     return cancelled;
@@ -450,6 +479,16 @@ export class AppointmentsService {
         startsAt: newStart,
         durationMinutes,
         timezone: 'America/Argentina/Buenos_Aires',
+      }).catch(() => {});
+    }
+
+    // Sync: clear old Sheets cell, mark new one
+    const staffName = targetAny.staff?.name;
+    if (staffName) {
+      this.getBusinessSheetsId(target.businessId).then((sheetsId) => {
+        if (!sheetsId) return;
+        this.googleSheetsService.clearSlot(sheetsId, target.startsAt, staffName).catch(() => {});
+        this.googleSheetsService.markSlot(sheetsId, newStart, staffName).catch(() => {});
       }).catch(() => {});
     }
 
@@ -539,6 +578,14 @@ export class AppointmentsService {
       include: { contact: true, service: true },
       orderBy: { startsAt: 'asc' },
     });
+  }
+
+  private async getBusinessSheetsId(businessId: string): Promise<string | null> {
+    const biz = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { sheetsSpreadsheetId: true },
+    });
+    return biz?.sheetsSpreadsheetId ?? null;
   }
 
   /**
